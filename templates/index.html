@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Face Styler</title>
+
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css">
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Poppins', sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      color: #fff;
+    }
+
+    .container {
+      width: 420px;
+      padding: 25px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(15px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      text-align: center;
+      position: relative;
+    }
+
+    h1 {
+      margin-bottom: 15px;
+      font-weight: 600;
+    }
+
+    .upload-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 999px;
+      border: none;
+      background: linear-gradient(135deg, #3b82f6, #22c55e);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.3s ease;
+      margin-bottom: 15px;
+    }
+    
+    .upload-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .drop-area {
+      border: 2px dashed rgba(255, 255, 255, 0.4);
+      border-radius: 16px;
+      padding: 35px 20px;
+      transition: 0.3s ease;
+      cursor: pointer;
+      margin-bottom: 15px;
+    }
+
+    .drop-area.dragover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: #22c55e;
+    }
+
+    .drop-area:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: #22c55e;
+    }
+    
+    .cloud-icon {
+      font-size: 40px;
+      margin-bottom: 10px;
+    }
+
+    .preview img {
+      width: 220px;
+      border-radius: 12px;
+      margin-top: 10px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+    }
+
+    .analyze-btn {
+      margin-top: 10px;
+      padding: 10px 18px;
+      border: none;
+      border-radius: 10px;
+      background: #22c55e;
+      color: #fff;
+      font-weight: 600;
+      transition: 0.3s ease;
+      cursor: pointer;
+    }
+    
+    .analyze-btn:hover {
+      background: #16a34a;
+    }
+
+    /* Loading Overlay */
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      border-radius: 20px;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid #22c55e;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    .result img {
+      width: 260px;
+      border-radius: 12px;
+      margin-top: 10px;
+    }
+
+    input[type="file"] { display: none; }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+
+    <!-- Loading Spinner -->
+    <div class="loading-overlay" id="loadingOverlay">
+      <div class="spinner"></div>
+      <div class="loading-text">Analyzing face...</div>
+    </div>
+
+    <h1>AI Face Styler</h1>
+
+    <form method="POST" enctype="multipart/form-data" id="uploadForm">
+      <button type="button" class="upload-btn" onclick="fileInput.click()">⬆ Upload Image</button>
+
+      <div class="drop-area" id="dropArea">
+        <div class="cloud-icon">☁⬆</div>
+        <p>Drag & drop or click to upload</p>
+        <small>Supports JPG, PNG, WEBP (max 10MB)</small>
+        <div class="preview" id="preview"></div>
+      </div>
+
+      <input type="file" id="fileInput" name="image" accept="image/*" required>
+
+      <button type="submit" class="analyze-btn">Analyze Face</button>
+    </form>
+
+    {% if image_path %}
+    <div class="result">
+      <h2>Result</h2>
+      <img src="/{{ image_path }}">
+      {% if no_face_detected %}
+        <p><b>Caution:</b> {{ msg }}</p>
+      {% elif error %}
+        <p><b>Caution:</b> {{ error }}</p>
+      {% else %}
+        <p><b>Face Shape:</b> {{ shape }}</p>
+        <p><b>Glasses:</b> {{ glasses }}</p>
+        <p><b>Hairstyle:</b> {{ hair }}</p>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <script>
+    const dropArea = document.getElementById("dropArea");
+    const fileInput = document.getElementById("fileInput");
+    const preview = document.getElementById("preview");
+    const form = document.getElementById("uploadForm");
+    const loading = document.getElementById("loadingOverlay");
+
+    dropArea.addEventListener("click", () => fileInput.click());
+
+    dropArea.addEventListener("dragover", e => {
+      e.preventDefault();
+      dropArea.classList.add("dragover");
+    });
+
+    dropArea.addEventListener("dragleave", () => dropArea.classList.remove("dragover"));
+
+    dropArea.addEventListener("drop", e => {
+      e.preventDefault();
+      dropArea.classList.remove("dragover");
+      const file = e.dataTransfer.files[0];
+      if (file) {
+        fileInput.files = e.dataTransfer.files;
+        showPreview(file);
+      }
+    });
+
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files[0];
+      if (file) showPreview(file);
+    });
+
+    function showPreview(file) {
+      if (!file.type.startsWith("image/")) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        preview.innerHTML = `<img src="${reader.result}">`;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // Show loading on submit
+    form.addEventListener("submit", () => {
+      loading.style.display = "flex";
+    });
+  </script>
+</body>
+</html>
