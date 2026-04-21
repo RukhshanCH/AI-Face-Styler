@@ -1,116 +1,197 @@
 from flask import Flask, render_template, request
-import cv2 as cv
-import mediapipe as mp
-import numpy as np
 import os
-from insightface.app import FaceAnalysis
+import cv2
+import mediapipe as mp
+import math
+import uuid
+import numpy as np
 
 app = Flask(__name__)
+app.config["UPLOAD_FOLDER"] = "static/uploads"
 
-# ---------------- InsightFace Setup ----------------
-app_face = FaceAnalysis(name='buffalo_l')
-app_face.prepare(ctx_id=-1)  # CPU (-1) | GPU (0)
+os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
-# ---------------- MediaPipe Setup ----------------
 mp_face_mesh = mp.solutions.face_mesh
-face_mesh = mp_face_mesh.FaceMesh(
-    static_image_mode=True,
-    max_num_faces=1,
-    min_detection_confidence=0.5
-)
 
-# ---------------- Recommendations ----------------
-recommendations = {
-    "Oval": ("Rectangular glasses", "Most hairstyles suit you"),
-    "Round": ("Square glasses", "Layered hair"),
-    "Square": ("Round glasses", "Soft textured hair"),
-    "Unknown": ("Any glasses", "Any hairstyle"),
-}
 
-def classify_face_shape(landmarks, w, h):
-    xs = [lm.x * w for lm in landmarks]
-    ys = [lm.y * h for lm in landmarks]
+# ---------------- UTILITIES ----------------
+def dist(p1, p2):
+    return math.sqrt((p1["x"] - p2["x"])**2 + (p1["y"] - p2["y"])**2)
 
-    face_width = max(xs) - min(xs)
-    face_height = max(ys) - min(ys)
-    ratio = face_height / face_width if face_width != 0 else 0
 
-    if 1.3 < ratio < 1.55:
-        return "Oval"
-    elif ratio <= 1.3:
-        return "Round"
-    elif ratio >= 1.55:
-        return "Square"
+def safe_get(landmarks, idx, w, h):
+    lm = landmarks[idx]
+    return {"x": lm.x * w, "y": lm.y * h}
+
+
+def safe_dist(p1, p2):
+    d = dist(p1, p2)
+    return max(d, 1e-6)  # prevents divide-by-zero
+
+
+def fuzzy(val, low, high, increasing=True):
+    if increasing:
+        if val <= low:
+            return 0.0
+        if val >= high:
+            return 1.0
+        return (val - low) / (high - low)
     else:
-        return "Unknown"
+        if val <= low:
+            return 1.0
+        if val >= high:
+            return 0.0
+        return (high - val) / (high - low)
 
 
-@app.route('/', methods=['GET', 'POST'])
+# ---------------- FACE SHAPE CLASSIFIER ----------------
+def classify_face_shape(landmarks, w, h):
+
+    def pt(i):
+        return np.array([landmarks[i].x * w, landmarks[i].y * h])
+
+    def dist(a, b):
+        return np.linalg.norm(a - b)
+
+    TOP = pt(10)
+    CHIN = pt(152)
+
+    F_L, F_R = pt(103), pt(332)
+    C_L, C_R = pt(234), pt(454)
+    J_L, J_R = pt(172), pt(397)
+
+    L = dist(TOP, CHIN)
+    C = dist(C_L, C_R)
+    F = dist(F_L, F_R)
+    J = dist(J_L, J_R)
+
+    if C < 1e-6:
+        return "Unknown", 0.0
+
+    # ---------------- FEATURES ----------------
+    aspect = L / C
+    forehead = F / C
+    jaw = J / C
+    taper = (F - J) / C
+    jaw_strength = J / F
+
+    # ---------------- NORMALIZATION ----------------
+    features = np.array([aspect, forehead, jaw, taper, jaw_strength])
+
+    # Ideal distributions (NOT fixed templates anymore)
+    prototypes = {
+        "Oval":    np.array([1.35, 0.90, 0.85, 0.05, 0.95]),
+        "Round":   np.array([1.10, 0.90, 0.90, 0.00, 1.00]),
+        "Square":  np.array([1.20, 0.95, 0.95, 0.00, 1.00]),
+        "Heart":   np.array([1.30, 1.05, 0.75, 0.20, 0.70]),
+        "Diamond": np.array([1.25, 0.80, 0.75, -0.10, 0.85]),
+        "Oblong":  np.array([1.55, 0.90, 0.85, 0.05, 0.95])
+    }
+
+    # ---------------- DISTANCE MATCHING ----------------
+    best_shape = None
+    best_score = float("inf")
+
+    for shape, proto in prototypes.items():
+        score = np.linalg.norm(features - proto)
+        if score < best_score:
+            best_score = score
+            best_shape = shape
+
+    # ---------------- CONFIDENCE ----------------
+    confidence = max(0.0, 1.0 - best_score)
+
+    return best_shape, round(confidence, 2)
+
+
+# ---------------- FLASK ROUTE ----------------
+@app.route("/", methods=["GET", "POST"])
 def index():
-    shape = glasses = hair = None
-    image_path = None
-    no_face_detected = False
-    msg = None
-    error = None
 
-    if request.method == 'POST':
-        file = request.files.get('image')
+    if request.method == "POST":
 
-        if file and file.filename != '':
-            filepath = os.path.join("static/inputPhotos", file.filename)
-            file.save(filepath)
+        file = request.files.get("image")
 
-            img = cv.imread(filepath)
+        if not file or file.filename == "":
+            return render_template("index.html", error="No file uploaded")
 
-            faces = app_face.get(img)
+        # UNIQUE FILE NAME (IMPORTANT FIX)
+        filename = f"{uuid.uuid4().hex}.jpg"
+        filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        file.save(filepath)
 
-            print(f"No. of faces found = {len(faces)}")
+        image = cv2.imread(filepath)
 
-            if len(faces) == 0:
-                no_face_detected = True
-                msg = "No face detected. Please upload a clear image."
+        if image is None:
+            return render_template("index.html", error="Invalid image")
 
-            elif len(faces) > 1:
-                error = "Multiple faces detected. Please upload a single face image."
+        rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        h, w, _ = image.shape
 
-            else:
-                face = faces[0]
-                x1, y1, x2, y2 = face.bbox.astype(int)
+        # -------- FACE MESH (STABLE CONFIG) --------
+        with mp_face_mesh.FaceMesh(
+            static_image_mode=True,
+            max_num_faces=1,
+            refine_landmarks=True,
+            min_detection_confidence=0.7
+        ) as face_mesh:
 
-                cv.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            results = face_mesh.process(rgb)
 
-                face_crop = img[y1:y2, x1:x2]
+        if not results.multi_face_landmarks:
+            return render_template(
+                "index.html",
+                image_path=filepath,
+                no_face_detected=True,
+                msg="No face detected"
+            )
 
-                if face_crop.size != 0:
-                    rgb = cv.cvtColor(face_crop, cv.COLOR_BGR2RGB)
+        landmarks = results.multi_face_landmarks[0].landmark
 
-                    result = face_mesh.process(rgb)
+        shape, confidence = classify_face_shape(landmarks, w, h)
 
-                    if result.multi_face_landmarks:
-                        shape = classify_face_shape(
-                            result.multi_face_landmarks[0].landmark,
-                            face_crop.shape[1],
-                            face_crop.shape[0]
-                        )
+        # -------- RECOMMENDATIONS --------
+        RECOMMENDATIONS = {
+            "Oval": {
+                "glasses": "Rectangular, Wayfarer",
+                "hair": "Most styles suit you"
+            },
+            "Round": {
+                "glasses": "Square frames",
+                "hair": "Volume on top"
+            },
+            "Square": {
+                "glasses": "Round frames",
+                "hair": "Soft textured hair"
+            },
+            "Heart": {
+                "glasses": "Light bottom frames",
+                "hair": "Fringe styles"
+            },
+            "Diamond": {
+                "glasses": "Oval frames",
+                "hair": "Soft waves"
+            },
+            "Unknown": {
+                "glasses": "Classic frames",
+                "hair": "Medium styles"
+            }
+        }
 
-                        glasses, hair = recommendations.get(shape, recommendations["Unknown"])
+        rec = RECOMMENDATIONS.get(shape, RECOMMENDATIONS["Unknown"])
 
-            output_dir = "static/outputPhotos"
-            os.makedirs(output_dir, exist_ok=True)
+        return render_template(
+            "index.html",
+            image_path=filepath,
+            shape=shape,
+            confidence=confidence,
+            glasses=rec["glasses"],
+            hair=rec["hair"]
+        )
 
-            image_path = os.path.join(output_dir, file.filename)
-            cv.imwrite(image_path, img)
+    return render_template("index.html")
 
-    return render_template(
-        'index.html',
-        shape=shape,
-        glasses=glasses,
-        hair=hair,
-        image_path=image_path,
-        no_face_detected=no_face_detected,
-        msg=msg,
-        error=error
-    )
 
-if __name__ == '__main__':
-    app.run(debug=True)
+# ---------------- RUN ----------------
+if __name__ == "__main__":
+    app.run(debug=True, use_reloader=False)
