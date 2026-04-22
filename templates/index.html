@@ -50,10 +50,10 @@
         <b>Face Shape:</b> {{ shape }}
       </p>
       <p>
-        <b>Glasses:</b> {{ glasses }}
+        <b>Hairstyle:</b> {{ hair }}
       </p>
       <p>
-        <b>Hairstyle:</b> {{ hair }}
+        <b>Glasses:</b> {{ glasses }}
       </p>
       <p>
         <b>Confidence:</b> {{ confidence }}
@@ -61,9 +61,13 @@
       <span>
         {% if shape %}
         {% set query_map = {
-        "Square": "Soft textured hair and round glasses for square face men",
-        "Round": "Layered haircut and square glasses for round face men",
-        "Oval": "Hairstyle and rectangular glasses for oval face men"
+        "Square": "Soft textured hair, side-swept or messy crops and Round or Oval glasses for men",
+        "Round": "Layered hair with volume at the top and Square or Rectangular frames for men",
+        "Oval": "Pompadours or side parts hairstyles and Rectangular, Wayfarer, or Aviator glasses for men",
+        "Oblong": "Hairstyles with fringes/bangs and Oversized, Wayfarer, or Thick-framed glasses for men",
+        "Heart": "Textured fringe or medium-length sweeps and Bottom-heavy frames or thin, light-colored framess for men",
+        "Diamond": "Soft waves or a messy fringe hairstyles and Oval or Rimless frames for men",
+        "Unknown": "Medium-length hairstyles and Classic frames for men"
         } %}
 
         {% if shape in query_map %}

@@ -150,31 +150,35 @@ def index():
 
         shape, confidence = classify_face_shape(landmarks, w, h)
 
-        # -------- RECOMMENDATIONS --------
+        # ---------------- RECOMMENDATIONS ----------------
         RECOMMENDATIONS = {
             "Oval": {
-                "glasses": "Rectangular, Wayfarer",
-                "hair": "Most styles suit you"
+                "glasses": "Rectangular, Wayfarer, or Aviator glasses",
+                "hair": "Most hairstyles suit you. Try pompadours or side parts."
             },
             "Round": {
-                "glasses": "Square frames",
-                "hair": "Volume on top"
+                "glasses": "Square or Rectangular frames to add sharp angles",
+                "hair": "Layered hair with volume at the top to elongate the face"
             },
             "Square": {
-                "glasses": "Round frames",
-                "hair": "Soft textured hair"
+                "glasses": "Round or Oval glasses to soften jawlines",
+                "hair": "Soft textured hair, side-swept or messy crops"
+            },
+            "Oblong": {
+                "glasses": "Oversized, Wayfarer, or Thick-framed glasses",
+                "hair": "Styles with fringes/bangs to shorten the face, avoid high volume at top"
             },
             "Heart": {
-                "glasses": "Light bottom frames",
-                "hair": "Fringe styles"
+                "glasses": "Bottom-heavy frames or thin, light-colored frames",
+                "hair": "Textured fringe or medium-length sweeps to balance the wide forehead"
             },
             "Diamond": {
-                "glasses": "Oval frames",
-                "hair": "Soft waves"
+                "glasses": "Oval or Rimless frames to highlight the cheekbones",
+                "hair": "Soft waves or a messy fringe to add width to the forehead"
             },
             "Unknown": {
                 "glasses": "Classic frames",
-                "hair": "Medium styles"
+                "hair": "Medium-length styles"
             }
         }
 
