@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request
 import os
-import cv2
 import mediapipe as mp
 import math
 import uuid
@@ -107,6 +106,8 @@ def classify_face_shape(landmarks, w, h):
 # ---------------- FLASK ROUTE ----------------
 @app.route("/", methods=["GET", "POST"])
 def index():
+
+    import cv2
 
     if request.method == "POST":
 
