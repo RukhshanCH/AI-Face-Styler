@@ -120,3 +120,5 @@ uvicorn==0.30.0
 
 wcwidth==0.6.0
 Werkzeug==3.1.6
+
+gunicorn==22.0.0
