@@ -28,11 +28,15 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends     libgl1     libglib2.0-0     libsm6     libxext6     libxrender1     libgomp1     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user with a writable home directory
-RUN groupadd -r appuser && useradd -r -g appuser appuser &&     mkdir -p /tmp/matplotlib-cache && chown -R appuser:appuser /tmp
+RUN groupadd -r appuser && useradd -r -g appuser appuser &&     mkdir -p /tmp/matplotlib-cache /tmp/.deepface && chown -R appuser:appuser /tmp
 
 # Copy and install Python deps first (leverages Docker layer caching)
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip &&     pip install --no-cache-dir -r requirements.txt
+
+# Pre-download DeepFace weights during build to prevent OOM at runtime
+COPY download_models.py .
+RUN python download_models.py &&     chown -R appuser:appuser /tmp/.deepface &&     rm download_models.py
 
 # Copy application code
 COPY . .
