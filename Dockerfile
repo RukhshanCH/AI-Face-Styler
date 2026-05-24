@@ -17,14 +17,18 @@ ENV UPLOAD_FOLDER=static/uploads
 ENV MAX_UPLOAD_SIZE_MB=16
 ENV LOG_LEVEL=INFO
 
+# Fix permission issues for non-root user (matplotlib, TF cache, etc.)
+ENV HOME=/tmp
+ENV MPLCONFIGDIR=/tmp/matplotlib-cache
+ENV TF_ENABLE_ONEDNN_OPTS=0
+
 WORKDIR /app
 
 # Install system dependencies for OpenCV, MediaPipe, DeepFace/TF, and Pillow
-# Note: Debian Trixie/Bookworm use 'libgl1' instead of the old 'libgl1-mesa-glx'
 RUN apt-get update && apt-get install -y --no-install-recommends     libgl1     libglib2.0-0     libsm6     libxext6     libxrender1     libgomp1     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# Create non-root user with a writable home directory
+RUN groupadd -r appuser && useradd -r -g appuser appuser &&     mkdir -p /tmp/matplotlib-cache && chown -R appuser:appuser /tmp
 
 # Copy and install Python deps first (leverages Docker layer caching)
 COPY requirements.txt .

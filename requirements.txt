@@ -1,7 +1,18 @@
+# Web server
 flask
 gunicorn
+
+# ML / CV (pinned versions from your stack)
 numpy==1.26.4
 mediapipe==0.10.21
 opencv-python-headless==4.10.0.84
+
+# Face embedding & image processing
 deepface
 Pillow
+
+# Required by DeepFace/RetinaFace when TF >= 2.16
+tf-keras
+
+# Optional: pin TensorFlow to avoid future breaking changes
+# tensorflow==2.15.1
