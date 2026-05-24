@@ -1,23 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Face Styler</title>
-
-  <!-- Google Font -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/style.css">
 </head>
-
 <body>
   <div class="container">
 
-    <!-- Loading Spinner -->
+    <!-- Loading Spinner with Progress -->
     <div class="loading-overlay" id="loadingOverlay">
       <div class="spinner"></div>
       <div class="loading-text">Analyzing face...</div>
+      <div class="loading-subtext">This may takes few seconds</div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
     </div>
 
     <h1>AI Face Styler</h1>
@@ -41,47 +41,55 @@
     <div class="result">
       <h2>Result</h2>
       <img src="/{{ image_path }}">
+      
       {% if no_face_detected %}
-      <p><b>Caution:</b> {{ msg }}</p>
+        <p class="warning"><b>Caution:</b> {{ msg }}</p>
       {% elif error %}
-      <p><b>Caution:</b> {{ error }}</p>
+        <p class="error"><b>Error:</b> {{ error }}</p>
       {% else %}
-      <p>
-        <b>Face Shape:</b> {{ shape }}
-      </p>
-      <p>
-        <b>Hairstyle:</b> {{ hair }}
-      </p>
-      <p>
-        <b>Glasses:</b> {{ glasses }}
-      </p>
-      <p>
-        <b>Confidence:</b> {{ confidence }}
-      </p>
-      <span>
-        {% if shape %}
-        {% set query_map = {
-        "Square": "Soft textured hair, side-swept or messy crops and Round or Oval glasses for men",
-        "Round": "Layered hair with volume at the top and Square or Rectangular frames for men",
-        "Oval": "Pompadours or side parts hairstyles and Rectangular, Wayfarer, or Aviator glasses for men",
-        "Oblong": "Hairstyles with fringes/bangs and Oversized, Wayfarer, or Thick-framed glasses for men",
-        "Heart": "Textured fringe or medium-length sweeps and Bottom-heavy frames or thin, light-colored framess for men",
-        "Diamond": "Soft waves or a messy fringe hairstyles and Oval or Rimless frames for men",
-        "Unknown": "Medium-length hairstyles and Classic frames for men"
-        } %}
+        <div class="result-card">
+          <div class="shape-badge" style="background: {{ 'green' if confidence > 50 else 'orange' if confidence > 30 else 'red' }}">
+            {{ shape }}
+          </div>
+          
+          <p><b>Hairstyle:</b> {{ hair }}</p>
+          <p><b>Glasses:</b> {{ glasses }}</p>
+          
+          <div class="confidence-bar">
+            <span>Confidence: {{ confidence }}%</span>
+            <div class="bar-bg">
+              <div class="bar-fill" style="width: {{ confidence }}%; background: {{ 'green' if confidence > 50 else 'orange' if confidence > 30 else 'red' }}"></div>
+            </div>
+          </div>
 
-        {% if shape in query_map %}
-        <a class="browse-btn" href="https://www.google.com/search?q={{ query_map[shape] | urlencode }}&udm=2"
-          target="_blank">
+          {% if all_probs %}
+          <div class="all-probs">
+            <h4>All Probabilities:</h4>
+            {% for shape_name, prob in all_probs.items()|sort(reverse=true, attribute='1') %}
+            <div class="prob-row">
+              <span>{{ shape_name }}</span>
+              <div class="prob-bar-bg">
+                <div class="prob-bar-fill" style="width: {{ prob }}%"></div>
+              </div>
+              <span>{{ prob }}%</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+
+        {% if confidence < 40 %}
+        <div class="low-confidence-warning">
+          ⚠️ Low confidence. Try a clearer frontal photo with good lighting.
+        </div>
+        {% endif %}
+
+        <!-- Simplified Google search link -->
+        {% if shape and query_map %}
+        <a class="browse-btn" href="https://www.google.com/search?q={{ query_map.get(shape, '') | urlencode }}&udm=2" target="_blank">
           Browse on Google
         </a>
-        {% else %}
-        <a class="browse-btn">Unknown</a>
         {% endif %}
-        {% else %}
-        <a class="browse-btn">Unknown</a>
-        {% endif %}
-      </span>
       {% endif %}
     </div>
     {% endif %}
@@ -93,6 +101,7 @@
     const preview = document.getElementById("preview");
     const form = document.getElementById("uploadForm");
     const loading = document.getElementById("loadingOverlay");
+    const progressFill = document.getElementById("progressFill");
 
     dropArea.addEventListener("click", () => fileInput.click());
 
@@ -127,11 +136,16 @@
       reader.readAsDataURL(file);
     }
 
-    // Show loading on submit
+    // Show loading with animation
     form.addEventListener("submit", () => {
       loading.style.display = "flex";
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 10;
+        progressFill.style.width = progress + "%";
+        if (progress >= 90) clearInterval(interval);
+      }, 200); // 2 seconds total animation
     });
   </script>
 </body>
-
 </html>

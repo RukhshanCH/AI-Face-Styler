@@ -165,3 +165,98 @@ input[type="file"] {
 .browse-btn:hover {
     background: #16a34a;
 }
+
+/* Progress bar */
+.progress-bar {
+  width: 200px;
+  height: 4px;
+  background: #ddd;
+  border-radius: 2px;
+  margin-top: 15px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #4CAF50;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+/* Confidence bar */
+.confidence-bar {
+  margin: 15px 0;
+}
+
+.bar-bg {
+  width: 100%;
+  height: 20px;
+  background: #eee;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 5px;
+}
+
+.bar-fill {
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+/* Shape badge */
+.shape-badge {
+  display: inline-block;
+  padding: 8px 20px;
+  border-radius: 20px;
+  color: white;
+  font-weight: bold;
+  margin: 15px 0;
+}
+
+/* Low confidence warning */
+.low-confidence-warning {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  color: #856404;
+  padding: 10px;
+  border-radius: 5px;
+  margin-top: 15px;
+}
+
+/* All probabilities */
+.all-probs {
+  margin-top: 20px;
+  padding: 15px;
+  border-radius: 8px;
+}
+
+.prob-row {
+  display: flex;
+  align-items: center;
+  margin: 8px 0;
+  gap: 10px;
+}
+
+.prob-row span:first-child {
+  width: 80px;
+  font-weight: 500;
+}
+
+.prob-bar-bg {
+  flex: 1;
+  height: 8px;
+  background: #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.prob-bar-fill {
+  height: 100%;
+  background: #4CAF50;
+  transition: width 0.5s ease;
+}
+
+.prob-row span:last-child {
+  width: 50px;
+  text-align: right;
+  font-size: 0.9em;
+}
