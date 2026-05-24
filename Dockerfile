@@ -19,23 +19,16 @@ ENV LOG_LEVEL=INFO
 
 WORKDIR /app
 
-# Install system dependencies required by OpenCV, MediaPipe, DeepFace/TF, and Pillow
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
+# Install system dependencies for OpenCV, MediaPipe, DeepFace/TF, and Pillow
+# Note: Debian Trixie/Bookworm use 'libgl1' instead of the old 'libgl1-mesa-glx'
+RUN apt-get update && apt-get install -y --no-install-recommends     libgl1     libglib2.0-0     libsm6     libxext6     libxrender1     libgomp1     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
 # Copy and install Python deps first (leverages Docker layer caching)
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip &&     pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
@@ -50,8 +43,7 @@ USER appuser
 EXPOSE 8080
 
 # Healthcheck: verify the app is responsive
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/')" || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/')" || exit 1
 
 # Run with Gunicorn: 1 worker per container (scale via replicas), 4 threads per worker
 CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "4", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-"]
