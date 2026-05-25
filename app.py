@@ -1,5 +1,9 @@
-from flask import Flask, render_template, request
 import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
+from flask import Flask, render_template, request
 import uuid
 import pickle
 import logging
