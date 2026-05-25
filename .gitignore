@@ -1,3 +1,68 @@
+venv/
+.gitignore
+.qodo
+.cache
+
+face_detection.py
+inputPhotos/
+outputPhotos/
+uploads/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Git / IDE
+.git/
+.gitignore
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# App-specific (DO NOT bake uploads or large models into image)
+static/uploads/*
+!static/uploads/.gitkeep
+# models/
+# *.pkl
+# *.h5
+# *.pb
+# *.onnx
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Keys
+ssh-key-2026-05-25.key
+ssh-key-2026-05-25.key.pub
+
 # wrangler files
 .wrangler
 .dev.vars*
