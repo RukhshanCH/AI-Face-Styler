@@ -198,11 +198,7 @@ def classify_face_shape(image_path: str) -> Tuple[str, float, Dict[str, float]]:
         margin = best_prob - second_prob
         max_raw_sim = float(top_k_sims[0])
 
-        # Rejection logic (thresholds were defined but unused in original)
-        if max_raw_sim < REJECT_THRESHOLD or margin < REJECT_MARGIN:
-            shape = "Unknown"
-        else:
-            shape = best_shape
+        shape = best_shape
 
         confidence = round(best_prob * 100, 2)
         all_probs = {
