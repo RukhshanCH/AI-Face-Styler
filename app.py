@@ -11,11 +11,11 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 from collections import defaultdict
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 from deepface import DeepFace
 
 app = Flask(__name__)
@@ -133,8 +133,13 @@ RECOMMENDATIONS = {
 }
 
 # ---------------- CLASSIFICATION ----------------
-def classify_face_shape(image_path: str) -> Tuple[str, float, Dict[str, float]]:
+def classify_face_shape(image_path: str) -> Tuple[str, float, Dict[str, float], Optional[str]]:
+    """
+    Returns: (shape, confidence, all_probs, annotated_image_path)
+    annotated_image_path is None if drawing the face box failed or no face was found.
+    """
     total_start = time.perf_counter()
+    annotated_path: Optional[str] = None
 
     try:
         # Resize large images in-place (no temp files)
@@ -142,14 +147,12 @@ def classify_face_shape(image_path: str) -> Tuple[str, float, Dict[str, float]]:
             if max(img.size) > MAX_IMAGE_SIZE:
                 ratio = MAX_IMAGE_SIZE / max(img.size)
                 new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
-                # LANCZOS for quality; use BILINEAR if speed is critical
                 img = img.resize(new_size, Image.LANCZOS)
                 img.save(image_path, format="JPEG", quality=85, optimize=True)
             elif img.format != "JPEG":
-                # Normalize to JPEG so DeepFace gets consistent input
                 img.save(image_path, format="JPEG", quality=90, optimize=True)
 
-        # Get embedding
+        # Get embedding + face location from DeepFace
         reps = DeepFace.represent(
             img_path=image_path,
             model_name=MODEL_NAME,
@@ -159,12 +162,15 @@ def classify_face_shape(image_path: str) -> Tuple[str, float, Dict[str, float]]:
         )
 
         if not reps:
-            return "No face detected", 0.0, {}
+            return "No face detected", 0.0, {}, None
+
+        # Extract facial area for bounding box
+        facial_area = reps[0].get("facial_area") if isinstance(reps[0], dict) else None
 
         test_emb = np.array(reps[0]["embedding"], dtype=np.float32)
         test_norm = np.linalg.norm(test_emb)
         if test_norm == 0:
-            return "Error: Empty embedding", 0.0, {}
+            return "Error: Empty embedding", 0.0, {}, None
 
         test_emb_normed = test_emb / test_norm
 
@@ -188,7 +194,7 @@ def classify_face_shape(image_path: str) -> Tuple[str, float, Dict[str, float]]:
 
         total = sum(votes.values())
         if total == 0:
-            return "Unknown", 0.0, {}
+            return "Unknown", 0.0, {}, None
 
         probs = {shape: score / total for shape, score in votes.items()}
         sorted_shapes = sorted(probs.items(), key=lambda x: x[1], reverse=True)
@@ -199,12 +205,35 @@ def classify_face_shape(image_path: str) -> Tuple[str, float, Dict[str, float]]:
         max_raw_sim = float(top_k_sims[0])
 
         shape = best_shape
-
         confidence = round(best_prob * 100, 2)
         all_probs = {
             cls: round(prob * 100, 2)
             for cls, prob in sorted(probs.items(), key=lambda x: x[1], reverse=True)
         }
+
+        # Draw bounding box on a copy of the (resized) image
+        if facial_area and isinstance(facial_area, dict):
+            try:
+                x = int(facial_area.get("x", facial_area.get("left", 0)))
+                y = int(facial_area.get("y", facial_area.get("top", 0)))
+                w = int(facial_area.get("w", facial_area.get("width", 0)))
+                h = int(facial_area.get("h", facial_area.get("height", 0)))
+
+                if w > 0 and h > 0:
+                    with Image.open(image_path) as img:
+                        draw = ImageDraw.Draw(img)
+                        line_width = max(2, int(min(img.size) * 0.008))
+                        draw.rectangle(
+                            [(x, y), (x + w, y + h)],
+                            outline="#00FF00",
+                            width=line_width,
+                        )
+                        ann_name = f"annotated_{Path(image_path).name}"
+                        annotated_path = str(Path(image_path).with_name(ann_name))
+                        img.save(annotated_path, format="JPEG", quality=90, optimize=True)
+            except Exception as draw_err:
+                logger.warning("Could not draw face box: %s", draw_err)
+                annotated_path = None
 
         logger.debug(
             "Processed %s in %.3fs | Shape: %s | Confidence: %.2f%% | TopSim: %.3f | Margin: %.3f",
@@ -217,14 +246,14 @@ def classify_face_shape(image_path: str) -> Tuple[str, float, Dict[str, float]]:
         )
         logger.debug("Probabilities: %s", all_probs)
 
-        return shape, confidence, all_probs
+        return shape, confidence, all_probs, annotated_path
 
     except Exception as e:
         err_msg = str(e)
         logger.error("Classification failed: %s", err_msg, exc_info=True)
         if "Face could not be detected" in err_msg:
-            return "No face detected", 0.0, {}
-        return f"Error: {err_msg[:50]}", 0.0, {}
+            return "No face detected", 0.0, {}, None
+        return f"Error: {err_msg[:50]}", 0.0, {}, None
 
 
 # ---------------- ROUTES ----------------
@@ -258,12 +287,15 @@ def index():
                 raise ValueError("Image too small (minimum 64px required)")
 
         logger.debug("Processing upload: %s", filename)
-        shape, confidence, all_probs = classify_face_shape(filepath)
+        shape, confidence, all_probs, annotated_path = classify_face_shape(filepath)
+
+        # Use annotated image for display if box was drawn successfully
+        display_path = annotated_path if annotated_path else filepath
 
         if str(shape).startswith("Error") or shape == "No face detected":
             return render_template(
                 "index.html",
-                image_path=filepath,
+                image_path=display_path,
                 shape=shape,
                 confidence=0.0,
                 all_probs={},
@@ -275,7 +307,7 @@ def index():
         rec = RECOMMENDATIONS.get(shape, RECOMMENDATIONS["Unknown"])
         return render_template(
             "index.html",
-            image_path=filepath,
+            image_path=display_path,
             shape=shape,
             confidence=confidence,
             all_probs=all_probs,
@@ -290,6 +322,9 @@ def index():
         try:
             if os.path.exists(filepath):
                 os.remove(filepath)
+            ann_path = str(Path(filepath).with_name(f"annotated_{filename}"))
+            if os.path.exists(ann_path):
+                os.remove(ann_path)
         except OSError:
             pass
         return render_template("index.html", error=str(e)[:100], query_map=QUERY_MAP)

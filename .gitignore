@@ -3,6 +3,8 @@ venv/
 .qodo
 .cache
 
+%AppData%
+
 face_detection.py
 inputPhotos/
 outputPhotos/
